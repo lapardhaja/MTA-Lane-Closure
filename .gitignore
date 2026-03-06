@@ -1,0 +1,4 @@
+# Exclude from repo
+*.zip
+*data_2025*.xlsx
+*data_2025*.xls
