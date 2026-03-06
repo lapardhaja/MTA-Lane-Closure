@@ -31,6 +31,10 @@ Expected columns (names are flexible, e.g. `Location` / `Loc` / `Segment`):
 | Volume   | 500       |
 | Lanes    | 2 or 3    |
 
+## Documentation
+
+- **AGENTS.md** – Implementation details, projection logic, holiday rules, and invariants for agents and developers. Read before modifying projection or holiday behavior.
+
 ## Project Structure
 
 ```
@@ -41,6 +45,7 @@ Dashboard/
 ├── styles.css      # Styles
 ├── mock-data.csv   # Sample data
 ├── assets/         # Logo and other assets
+├── AGENTS.md       # Agent/dev documentation (projection, holidays, invariants)
 └── README.md
 ```
 

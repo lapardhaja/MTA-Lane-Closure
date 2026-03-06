@@ -1245,7 +1245,7 @@ function buildTargetToSourceMap(baseYear, targetYear) {
   return targetToSource;
 }
 
-function findSourceDateKey(targetDateKey, targetToSourceHoliday, baseYear) {
+function findSourceDateKey(targetDateKey, targetToSourceHoliday, baseYear, baseHolidayDateKeys) {
   const override = targetToSourceHoliday.get(targetDateKey);
   if (override) return override;
   const parts = targetDateKey.split("-");
@@ -1255,8 +1255,28 @@ function findSourceDateKey(targetDateKey, targetToSourceHoliday, baseYear) {
     Number(parts[1]) - 1,
     Number(parts[2])
   );
-  const sourceDate = mapDateToYearByWeekday(targetDate, baseYear);
-  return formatDateKey(sourceDate);
+  let sourceDate = mapDateToYearByWeekday(targetDate, baseYear);
+  let sourceKey = formatDateKey(sourceDate);
+
+  // Avoid using a base-year holiday when target is not a holiday
+  if (baseHolidayDateKeys && baseHolidayDateKeys.has(sourceKey)) {
+    const baseYearStart = new Date(baseYear, 0, 1);
+    const baseYearEnd = new Date(baseYear, 11, 31);
+    for (const delta of [-7, 7, -14, 14, -21, 21]) {
+      const alt = new Date(sourceDate);
+      alt.setDate(alt.getDate() + delta);
+      if (alt >= baseYearStart && alt <= baseYearEnd) {
+        const altKey = formatDateKey(alt);
+        if (!baseHolidayDateKeys.has(altKey)) {
+          return altKey;
+        }
+      }
+    }
+    // Fallback: use -7 even if holiday (least bad)
+    sourceDate.setDate(sourceDate.getDate() - 7);
+    sourceKey = formatDateKey(sourceDate);
+  }
+  return sourceKey;
 }
 
 function buildProjectedRows(rows, targetYear) {
@@ -1270,6 +1290,11 @@ function buildProjectedRows(rows, targetYear) {
   if (!baseRows.length) return [];
 
   const targetToSourceHoliday = buildTargetToSourceMap(baseYear, targetYear);
+
+  const baseHolidayDateKeys = new Set();
+  for (const item of buildHolidayList(baseYear)) {
+    baseHolidayDateKeys.add(formatDateKey(item.dateObj));
+  }
 
   const sourceByKey = new Map();
   for (const row of baseRows) {
@@ -1293,7 +1318,8 @@ function buildProjectedRows(rows, targetYear) {
     const sourceDateKey = findSourceDateKey(
       targetDateKey,
       targetToSourceHoliday,
-      baseYear
+      baseYear,
+      baseHolidayDateKeys
     );
     for (const time of times) {
       const sourceKey = sourceDateKey ? `${sourceDateKey}__${time}` : null;
