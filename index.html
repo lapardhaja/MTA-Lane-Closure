@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Maine Turnpike Authority – Lane Closure Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <img src="assets/MTALogo.png" alt="Maine Turnpike" class="header-logo" />
+      <div class="header-title-wrap">
+        <h1 class="title-brand">Maine Turnpike Authority</h1>
+        <p class="title-app">Lane Closure Dashboard</p>
+      </div>
+      <div class="summary">
+        <div class="summary-label">Entries</div>
+        <div class="summary-value" id="rowCount">0</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card" id="fileDropZone">
+        <div class="card-title">Data Source</div>
+        <div class="controls">
+          <label class="file-input">
+            <input id="csvInput" type="file" accept=".csv,.xls,.xlsx" />
+            <span>Upload File</span>
+          </label>
+          <button id="clearData" type="button" class="ghost">Clear</button>
+          <div class="file-name" id="fileName">No file selected</div>
+          <div class="hint">
+            Expected columns: Location, Direction, Date, Time, Volume, Lanes
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Filters</div>
+        <div class="filters">
+          <label>
+            Location
+            <select id="locationFilter">
+              <option value="">Select</option>
+            </select>
+          </label>
+          <label>
+            Direction
+            <select id="directionFilter">
+              <option value="">Select</option>
+            </select>
+          </label>
+          <label>
+            Day of week
+            <select id="weekdayFilter">
+              <option value="all">All</option>
+              <option value="mon-thu">Mon-Thu</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+              <option value="0">Sunday</option>
+            </select>
+          </label>
+          <label>
+            Start date
+            <input id="startDate" type="date" />
+          </label>
+          <label>
+            End date
+            <input id="endDate" type="date" />
+          </label>
+          <div class="checkbox-group collapsed" id="holidayCheckboxGroup">
+            <div class="checkbox-title">
+              Holidays
+              <button
+                id="toggleHolidays"
+                type="button"
+                class="ghost toggle-button"
+                aria-expanded="false"
+                aria-controls="holidayPanel"
+                aria-label="Expand holidays"
+              >
+                &gt;
+              </button>
+            </div>
+            <div id="holidayPanel" class="holiday-panel" aria-hidden="true">
+              <label class="checkbox">
+                <input id="holidayUS" type="checkbox" checked />
+                US Federal
+              </label>
+              <label class="checkbox">
+                <input id="holidayME" type="checkbox" checked />
+                Maine
+              </label>
+              <label class="checkbox">
+                <input id="holidayNH" type="checkbox" checked />
+                New Hampshire
+              </label>
+              <div class="holiday-detail-header">
+                <button
+                  id="toggleHolidayDetail"
+                  type="button"
+                  class="ghost toggle-button"
+                  aria-expanded="false"
+                  aria-controls="holidayDetailList"
+                  aria-label="Expand to select which holidays to show"
+                >
+                  &gt;
+                </button>
+                <span>Select which holidays to show</span>
+              </div>
+              <div id="holidayDetailList" class="holiday-detail-list collapsed" aria-hidden="true"></div>
+            </div>
+          </div>
+          <button id="resetFilters" type="button" class="ghost">
+            Reset filters
+          </button>
+          <label>
+            Export as
+            <select id="exportFormat">
+              <option value="html">HTML</option>
+              <option value="pdf">PDF</option>
+              <option value="excel">Excel</option>
+            </select>
+          </label>
+          <button id="exportView" type="button">Export view</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">
+          Closure Thresholds
+          <button
+            id="toggleSettings"
+            type="button"
+            class="ghost toggle-button"
+            aria-expanded="true"
+            aria-controls="settingsPanel"
+            aria-label="Collapse closure thresholds"
+          >
+            v
+          </button>
+        </div>
+        <div class="collapsible-panel" id="settingsPanel">
+          <div class="thresholds" id="thresholdsPanel">
+            <div class="thresholds-meta" id="thresholdsMeta">
+              Defaults shown. Load data to auto-select lane controls.
+            </div>
+            <div class="threshold-group" data-lanes="2">
+              <div class="threshold-title">2-lane segment</div>
+              <div class="threshold-controls">
+                <label>
+                  Single closure max volume
+                  <input
+                    id="threshold-2-single"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                  />
+                </label>
+              </div>
+              <div class="legend">
+                <div class="legend-item tier-single">
+                  Single lane closure allowed (<span id="threshold-2-single-label"></span>)
+                </div>
+                <div class="legend-item tier-none">
+                  No closure allowed (<span id="threshold-2-none-label"></span>)
+                </div>
+              </div>
+            </div>
+            <div class="threshold-group" data-lanes="3">
+              <div class="threshold-title">3-lane segment</div>
+              <div class="threshold-controls">
+                <label>
+                  Double closure max volume
+                  <input
+                    id="threshold-3-double"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                  />
+                </label>
+                <label>
+                  Single closure max volume
+                  <input
+                    id="threshold-3-single"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                  />
+                </label>
+              </div>
+              <div class="threshold-error" id="threshold-3-error" aria-live="polite"></div>
+              <div class="legend">
+                <div class="legend-item tier-double">
+                  Double lane closure allowed (<span id="threshold-3-double-label"></span>)
+                </div>
+                <div class="legend-item tier-single">
+                  Single lane closure allowed (<span id="threshold-3-single-label"></span>)
+                </div>
+                <div class="legend-item tier-none">
+                  No closure allowed (<span id="threshold-3-none-label"></span>)
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="tab-bar">
+          <button id="tabCurrent" type="button" class="tab-button is-active">
+            Current
+          </button>
+          <button id="tabProjections" type="button" class="tab-button">
+            Projections
+          </button>
+        </div>
+      </section>
+
+      <div id="currentView">
+      <section class="card">
+        <div class="card-title">
+          N/A Summary
+          <button
+            id="toggleNaSummary"
+            type="button"
+            class="ghost toggle-button"
+            aria-expanded="true"
+            aria-controls="naSummaryPanel"
+            aria-label="Collapse N/A summary"
+          >
+            v
+          </button>
+        </div>
+        <div class="na-summary collapsible-panel" id="naSummaryPanel">
+          <div class="na-summary-count" id="naSummaryCount">0 N/A cells</div>
+          <div class="na-summary-list" id="naSummaryList">No N/A values.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Lane Closure Table</div>
+        <div class="table-meta" id="tableMeta">No data loaded.</div>
+        <div class="table-scrollbar" id="tableScrollbar">
+          <div class="table-scrollbar-inner" id="tableScrollbarInner"></div>
+        </div>
+        <div class="table-wrap" id="tableWrap">
+          <table>
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Closure Schedule</div>
+        <div class="closure-schedule-toggles" id="closureScheduleToggles">
+          <button type="button" class="closure-toggle-btn is-active" id="closureToggleSingle" data-type="single">1-lane closure</button>
+          <button type="button" class="closure-toggle-btn" id="closureToggleDouble" data-type="double">2-lane closure</button>
+        </div>
+        <div class="closure-schedule-meta" id="closureScheduleMeta">Select location and direction.</div>
+        <div class="closure-schedule-hint" id="closureScheduleHint">
+          Gray = no data. ANY = closure allowed all day.
+        </div>
+        <div class="closure-schedule-legend" id="closureScheduleLegend"></div>
+        <div class="closure-schedule-layout">
+          <div class="closure-schedule-tables" id="closureScheduleTablesWrap">
+            <div class="closure-schedule-wrap closure-schedule-begin">
+              <div class="closure-schedule-table-title">Closure Begin</div>
+              <table>
+                <thead id="closureScheduleBeginHead"></thead>
+                <tbody id="closureScheduleBeginBody"></tbody>
+              </table>
+            </div>
+            <div class="closure-schedule-wrap closure-schedule-end">
+              <div class="closure-schedule-table-title">Closure End</div>
+              <table>
+                <thead id="closureScheduleEndHead"></thead>
+                <tbody id="closureScheduleEndBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div>
+
+      <div id="projectionsView" class="is-hidden">
+        <section class="card">
+          <div class="card-title">Projection Settings</div>
+          <div class="projection-controls">
+            <label>
+              Target year
+              <select id="projectionYear"></select>
+            </label>
+          </div>
+          <div class="projection-locations">
+            <div class="projection-title">Annual Growth Rate</div>
+            <div id="projectionLocationRates"></div>
+          </div>
+        </section>
+
+        <section class="card collapsed">
+          <div class="card-title">
+            Holiday Projection Mapping
+            <button
+              id="toggleHolidayMapping"
+              type="button"
+              class="ghost toggle-button"
+              aria-expanded="false"
+              aria-controls="projectionHolidayPanel"
+              aria-label="Expand holiday projection mapping"
+            >
+              &gt;
+            </button>
+          </div>
+          <div class="collapsible-panel" id="projectionHolidayPanel" aria-hidden="true">
+            <div class="projection-holiday" id="projectionHolidaySummary">
+              Load data to see holiday mappings.
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-title">Projected Lane Closure Table</div>
+          <div class="table-meta" id="projectionTableMeta">No data loaded.</div>
+          <div class="table-scrollbar" id="projectionTableScrollbar">
+            <div
+              class="table-scrollbar-inner"
+              id="projectionTableScrollbarInner"
+            ></div>
+          </div>
+          <div class="table-wrap" id="projectionTableWrap">
+            <table>
+              <thead id="projectionTableHead"></thead>
+              <tbody id="projectionTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-title">Projected Closure Schedule</div>
+          <div class="closure-schedule-toggles" id="projectionClosureToggles">
+            <button type="button" class="closure-toggle-btn is-active" id="projectionClosureToggleSingle" data-type="single">1-lane closure</button>
+            <button type="button" class="closure-toggle-btn" id="projectionClosureToggleDouble" data-type="double">2-lane closure</button>
+          </div>
+          <div class="closure-schedule-meta" id="projectionClosureScheduleMeta">Select location and direction.</div>
+          <div class="closure-schedule-hint" id="projectionClosureScheduleHint">
+            Gray = no data. ANY = closure allowed all day.
+          </div>
+          <div class="closure-schedule-legend" id="projectionClosureScheduleLegend"></div>
+          <div class="closure-schedule-layout">
+            <div class="closure-schedule-tables" id="projectionClosureScheduleTablesWrap">
+              <div class="closure-schedule-wrap closure-schedule-begin">
+                <div class="closure-schedule-table-title">Closure Begin</div>
+                <table>
+                  <thead id="projectionClosureScheduleBeginHead"></thead>
+                  <tbody id="projectionClosureScheduleBeginBody"></tbody>
+                </table>
+              </div>
+              <div class="closure-schedule-wrap closure-schedule-end">
+                <div class="closure-schedule-table-title">Closure End</div>
+                <table>
+                  <thead id="projectionClosureScheduleEndHead"></thead>
+                  <tbody id="projectionClosureScheduleEndBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>Developed by Servet Lapardhaja</p>
+      <p class="company">HNTB Corporation</p>
+      <p class="year">2026</p>
+    </footer>
+
+    <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+      <div class="loading-overlay-content">
+        <div class="loading-graphic">
+          <div class="loading-progress-track"></div>
+          <div class="loading-progress-bar"></div>
+          <div class="loading-logo-wrap">
+            <img src="assets/MTALogo.png" alt="" class="loading-logo" />
+          </div>
+        </div>
+        <p class="loading-text">Loading data…</p>
+        <p class="loading-subtext">Please wait until the file is loaded and calculated.</p>
+      </div>
+    </div>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
