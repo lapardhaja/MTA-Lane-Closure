@@ -2151,7 +2151,6 @@ function formatHourLabel(hour) {
 
 function renderClosureLegend(el) {
   if (!el) return;
-  const HOURS = [0, 4, 8, 12, 16, 20];
   const gradientStops = [];
   for (let h = 0; h < 24; h++) {
     const c = getHourColor(h);
@@ -2159,20 +2158,31 @@ function renderClosureLegend(el) {
     const pctNext = ((h + 1) / 24) * 100;
     gradientStops.push(`${c} ${pct}%`, `${c} ${pctNext}%`);
   }
-  const labels = HOURS.map(
-    (h) => `<span class="closure-schedule-colorbar-label" style="left:${(h / 24) * 100}%">${formatHourLabel(h)}</span>`
+  const hoverZones = Array.from({ length: 24 }, (_, h) =>
+    `<span class="closure-schedule-colorbar-hover" style="left:${(h / 24) * 100}%;width:${100 / 24}%" data-label="${formatHourLabel(h)}"></span>`
   ).join("");
   el.innerHTML = `
     <span class="closure-schedule-legend-title">Time</span>
     <div class="closure-schedule-colorbar">
-      <div class="closure-schedule-colorbar-strip" style="background:linear-gradient(to right, ${gradientStops.join(", ")})"></div>
-      <div class="closure-schedule-colorbar-labels">${labels}</div>
+      <div class="closure-schedule-colorbar-strip" style="background:linear-gradient(to right, ${gradientStops.join(", ")})">
+        <div class="closure-schedule-colorbar-hover-wrap">${hoverZones}</div>
+      </div>
     </div>
     <span class="closure-schedule-colorbar-extra">
       <span><span class="closure-schedule-legend-swatch closure-schedule-legend-any"></span> ANY</span>
       <span><span class="closure-schedule-legend-swatch closure-schedule-legend-nodata"></span> No data</span>
     </span>
   `;
+  const wrap = el.querySelector(".closure-schedule-colorbar-hover-wrap");
+  if (wrap) {
+    wrap.addEventListener("mouseover", (e) => {
+      const zone = e.target.closest(".closure-schedule-colorbar-hover");
+      if (zone && zone.dataset.label) {
+        showColorbarTooltip(zone, zone.dataset.label);
+      }
+    });
+    wrap.addEventListener("mouseout", () => hideColorbarTooltip());
+  }
 }
 
 function renderClosureSchedule() {
@@ -2608,7 +2618,7 @@ function buildExportHtml() {
       .tier-double-yellow, .tier-single-yellow { background: #fef08a; border-color: #eab308; }
       .tier-double-orange, .tier-single-orange { background: #fdba74; border-color: #ea580c; }
       .tier-single { background: #fef08a; border-color: #eab308; }
-      .tier-none { background: #fca5a5; border-color: #dc2626; }
+      .tier-none { background: #f87171; border-color: #b91c1c; }
       table {
         border-collapse: collapse;
         width: 100%;
@@ -2625,7 +2635,7 @@ function buildExportHtml() {
       .cell-single-yellow, .cell-double-yellow { background: #fef08a; }
       .cell-single-orange, .cell-double-orange { background: #fdba74; }
       .cell-single { background: #fef08a; }
-      .cell-none { background: #fca5a5; }
+      .cell-none { background: #f87171; }
       .cell-unknown { background: #f3f4f6; color: #6b7280; }
       .cell-na { background: #fef2f2; color: #b91c1c; font-weight: 700; }
       .closure-schedule-section { margin-top: 24px; }
@@ -3109,6 +3119,12 @@ monThuMaxTooltip.setAttribute("role", "tooltip");
 monThuMaxTooltip.setAttribute("aria-hidden", "true");
 document.body.appendChild(monThuMaxTooltip);
 
+const colorbarTooltip = document.createElement("div");
+colorbarTooltip.className = "projection-source-tooltip";
+colorbarTooltip.setAttribute("role", "tooltip");
+colorbarTooltip.setAttribute("aria-hidden", "true");
+document.body.appendChild(colorbarTooltip);
+
 let projectionSourceTooltipTimer = null;
 
 function showMonThuMaxTooltip(cell) {
@@ -3225,6 +3241,29 @@ function showClosureScheduleTooltip(cell) {
 function hideClosureScheduleTooltip() {
   closureScheduleTooltip.classList.remove("is-visible");
   closureScheduleTooltip.setAttribute("aria-hidden", "true");
+}
+
+function showColorbarTooltip(el, label) {
+  colorbarTooltip.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "tooltip-title";
+  title.textContent = "Time";
+  colorbarTooltip.appendChild(title);
+  const row = document.createElement("div");
+  row.className = "tooltip-row";
+  row.textContent = label;
+  colorbarTooltip.appendChild(row);
+  const rect = el.getBoundingClientRect();
+  colorbarTooltip.style.left = `${rect.left + rect.width / 2}px`;
+  colorbarTooltip.style.top = `${rect.top - 8}px`;
+  colorbarTooltip.style.transform = "translate(-50%, -100%)";
+  colorbarTooltip.classList.add("is-visible");
+  colorbarTooltip.setAttribute("aria-hidden", "false");
+}
+
+function hideColorbarTooltip() {
+  colorbarTooltip.classList.remove("is-visible");
+  colorbarTooltip.setAttribute("aria-hidden", "true");
 }
 
 function openMonthMonThuDetail(monthDates, tableData, monthName) {
