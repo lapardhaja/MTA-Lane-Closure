@@ -811,6 +811,9 @@ function applyFilters() {
       if (filters.weekday === "mon-thu") {
         const d = row.dateObj.getDay();
         if (d < 1 || d > 4) return false; // Mon=1..Thu=4
+      } else if (filters.weekday === "mon-wed") {
+        const d = row.dateObj.getDay();
+        if (d < 1 || d > 3) return false; // Mon=1..Wed=3
       } else {
         const weekday = String(row.dateObj.getDay());
         if (weekday !== filters.weekday) return false;
@@ -889,13 +892,15 @@ function renderTable() {
 
   const filters = getFilters();
   const isMonThu = filters.weekday === "mon-thu";
+  const isMonWed = filters.weekday === "mon-wed";
+  const isWeekAggregated = isMonThu || isMonWed;
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   let dates;
   let aggregated;
   let aggregatedMeta;
 
-  if (isMonThu) {
+  if (isWeekAggregated) {
     dates = Array.from(
       new Set(state.filtered.map((row) => getWeekStartSunday(row.dateKey)))
     ).sort((a, b) => a.localeCompare(b));
@@ -959,11 +964,12 @@ function renderTable() {
     }
     const spanDates = dates.slice(startIdx, startIdx + count);
     let dateKeysForClick = spanDates;
-    if (isMonThu) {
+    if (isWeekAggregated) {
       dateKeysForClick = [];
+      const dayCount = isMonThu ? 4 : 3;
       for (const weekStart of spanDates) {
         const [yw, mw, dw] = weekStart.split("-").map(Number);
-        for (let j = 1; j <= 4; j++) {
+        for (let j = 1; j <= dayCount; j++) {
           const d = new Date(yw, mw - 1, dw + j);
           dateKeysForClick.push(formatDateKey(d));
         }
@@ -974,8 +980,8 @@ function renderTable() {
   const monthRow = document.createElement("tr");
   monthRow.innerHTML = `<th></th>${monthSpans.map((s, idx) => {
     const dateKeys = s.dates.length ? ` data-month-dates="${s.dates.join(",")}"` : "";
-    const monThuAttr = isMonThu ? ` data-month-mon-thu="true"` : "";
-    return `<th colspan="${s.count}" class="month-label month-label-clickable${idx > 0 ? " month-boundary" : ""}"${dateKeys}${monThuAttr}>${s.name}</th>`;
+    const monthAttr = isMonThu ? ` data-month-mon-thu="true"` : isMonWed ? ` data-month-mon-wed="true"` : "";
+    return `<th colspan="${s.count}" class="month-label month-label-clickable${idx > 0 ? " month-boundary" : ""}"${dateKeys}${monthAttr}>${s.name}</th>`;
   }).join("")}`;
   tableHead.appendChild(monthRow);
 
@@ -987,10 +993,10 @@ function renderTable() {
       const cls = holidays.length > 0 ? "holiday-header" : "";
       const monthBoundary = i > 0 && dates[i - 1].slice(0, 7) !== date.slice(0, 7);
       const boundaryCls = monthBoundary ? " month-boundary" : "";
-      const displayDate = isMonThu ? `Week of ${formatDateDisplay(date)}` : formatDateDisplay(date);
+      const displayDate = isWeekAggregated ? `Week of ${formatDateDisplay(date)}` : formatDateDisplay(date);
       const [yw, mw, dw] = date.split("-").map(Number);
-      const weekDates = isMonThu
-        ? [formatDateKey(new Date(yw, mw - 1, dw + 1)), formatDateKey(new Date(yw, mw - 1, dw + 2)), formatDateKey(new Date(yw, mw - 1, dw + 3)), formatDateKey(new Date(yw, mw - 1, dw + 4))]
+      const weekDates = isWeekAggregated
+        ? Array.from({ length: isMonThu ? 4 : 3 }, (_, j) => formatDateKey(new Date(yw, mw - 1, dw + j + 1)))
         : null;
       const weekDatesAttr = weekDates ? ` data-week-dates="${weekDates.join(",")}"` : "";
       return `<th class="${cls}${boundaryCls} date-clickable" data-date="${date}"${weekDatesAttr} title="${title}">${displayDate}</th>`;
@@ -1009,11 +1015,12 @@ function renderTable() {
       const date = dates[i];
       const key = `${date}__${time}`;
       const row = aggregated.get(key);
-      const meta = isMonThu ? aggregatedMeta.get(key) : null;
+      const meta = isWeekAggregated ? aggregatedMeta.get(key) : null;
       const monthBoundary = i > 0 && dates[i - 1].slice(0, 7) !== date.slice(0, 7);
       const boundaryCls = monthBoundary ? " month-boundary" : "";
-      const tooltipAttrs = isMonThu && meta
-        ? ` data-max-date="${meta.dateKey}" data-max-day="${(meta.dayName || "").replace(/"/g, "&quot;")}" data-max-volume="${Number.isFinite(meta.volume) ? meta.volume : ""}"`
+      const weekdayRangeAttr = isMonWed ? ` data-weekday-range="mon-wed"` : "";
+      const tooltipAttrs = isWeekAggregated && meta
+        ? ` data-max-date="${meta.dateKey}" data-max-day="${(meta.dayName || "").replace(/"/g, "&quot;")}" data-max-volume="${Number.isFinite(meta.volume) ? meta.volume : ""}"${weekdayRangeAttr}`
         : "";
       if (!row) {
         cells.push(`<td class="cell-unknown${boundaryCls}"${tooltipAttrs}>—</td>`);
@@ -1021,7 +1028,7 @@ function renderTable() {
       }
       if (Number.isNaN(row.volume)) {
         cells.push(`<td class="cell-na${boundaryCls}"${tooltipAttrs}>N/A</td>`);
-        naItems.push({ date: isMonThu ? meta?.dateKey : date, time });
+        naItems.push({ date: isWeekAggregated ? meta?.dateKey : date, time });
         continue;
       }
       const volume = formatNumber(row.volume);
@@ -1036,7 +1043,7 @@ function renderTable() {
   if (tableWrap) {
     tableWrap.dataset.lanes = laneCountsArr.length === 1 ? String(laneCountsArr[0]) : "";
   }
-  const perDateAggregated = isMonThu
+  const perDateAggregated = isWeekAggregated
     ? (() => {
         const m = new Map();
         for (const row of state.filtered) {
@@ -1047,14 +1054,14 @@ function renderTable() {
         return m;
       })()
     : aggregated;
-  const datesForChart = isMonThu ? Array.from(new Set(state.filtered.map((r) => r.dateKey))).sort((a, b) => a.localeCompare(b)) : dates;
+  const datesForChart = isWeekAggregated ? Array.from(new Set(state.filtered.map((r) => r.dateKey))).sort((a, b) => a.localeCompare(b)) : dates;
   state.currentTableData = {
     dates: datesForChart,
     times,
     aggregated: perDateAggregated,
     location: getFilters().location,
     direction: getFilters().direction,
-    ...(isMonThu && { weekStarts: dates, weekAggregated: aggregated }),
+    ...(isWeekAggregated && { weekStarts: dates, weekAggregated: aggregated }),
   };
   tableMeta.textContent = `${formatNumber(
     dates.length
@@ -1411,6 +1418,8 @@ function renderProjectionTable() {
     }
   }
   const isMonThu = filters.weekday === "mon-thu";
+  const isMonWed = filters.weekday === "mon-wed";
+  const isWeekAggregated = isMonThu || isMonWed;
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   if (filters.weekday !== "all") {
@@ -1418,10 +1427,11 @@ function renderProjectionTable() {
       const [y, m, d] = dateKey.split("-").map(Number);
       const dayOfWeek = new Date(y, m - 1, d).getDay();
       if (isMonThu) return dayOfWeek >= 1 && dayOfWeek <= 4;
+      if (isMonWed) return dayOfWeek >= 1 && dayOfWeek <= 3;
       return String(dayOfWeek) === filters.weekday;
     });
   }
-  if (isMonThu) {
+  if (isWeekAggregated) {
     dates = Array.from(new Set(dates.map((d) => getWeekStartSunday(d)))).sort((a, b) => a.localeCompare(b));
   }
   const times = Array.from(new Set(projectedRows.map((row) => row.time))).sort(
@@ -1430,12 +1440,13 @@ function renderProjectionTable() {
 
   let aggregated;
   let aggregatedMeta;
-  if (isMonThu) {
+  if (isWeekAggregated) {
     aggregated = new Map();
     aggregatedMeta = new Map();
+    const dayMax = isMonThu ? 4 : 3;
     for (const row of projectedRows) {
       const d = row.dateObj ? row.dateObj.getDay() : -1;
-      if (d < 1 || d > 4) continue;
+      if (d < 1 || d > dayMax) continue;
       const weekStart = getWeekStartSunday(row.dateKey);
       const key = `${weekStart}__${row.time}`;
       const vol = Number.isFinite(row.volume) ? row.volume : NaN;
@@ -1484,11 +1495,12 @@ function renderProjectionTable() {
     }
     const spanDates = dates.slice(startIdx, startIdx + count);
     let dateKeysForClick = spanDates;
-    if (isMonThu) {
+    if (isWeekAggregated) {
       dateKeysForClick = [];
+      const dayCount = isMonThu ? 4 : 3;
       for (const weekStart of spanDates) {
         const [yw, mw, dw] = weekStart.split("-").map(Number);
-        for (let j = 1; j <= 4; j++) {
+        for (let j = 1; j <= dayCount; j++) {
           const d = new Date(yw, mw - 1, dw + j);
           dateKeysForClick.push(formatDateKey(d));
         }
@@ -1499,8 +1511,8 @@ function renderProjectionTable() {
   const monthRow = document.createElement("tr");
   monthRow.innerHTML = `<th></th>${monthSpans.map((s, idx) => {
     const dateKeys = s.dates.length ? ` data-month-dates="${s.dates.join(",")}"` : "";
-    const monThuAttr = isMonThu ? ` data-month-mon-thu="true"` : "";
-    return `<th colspan="${s.count}" class="month-label month-label-clickable${idx > 0 ? " month-boundary" : ""}"${dateKeys}${monThuAttr}>${s.name}</th>`;
+    const monthAttr = isMonThu ? ` data-month-mon-thu="true"` : isMonWed ? ` data-month-mon-wed="true"` : "";
+    return `<th colspan="${s.count}" class="month-label month-label-clickable${idx > 0 ? " month-boundary" : ""}"${dateKeys}${monthAttr}>${s.name}</th>`;
   }).join("")}`;
   projectionTableHead.appendChild(monthRow);
 
@@ -1512,10 +1524,10 @@ function renderProjectionTable() {
       const cls = holidays.length > 0 ? "holiday-header" : "";
       const monthBoundary = i > 0 && dates[i - 1].slice(0, 7) !== date.slice(0, 7);
       const boundaryCls = monthBoundary ? " month-boundary" : "";
-      const displayDate = isMonThu ? `Week of ${formatDateDisplay(date)}` : formatDateDisplay(date);
+      const displayDate = isWeekAggregated ? `Week of ${formatDateDisplay(date)}` : formatDateDisplay(date);
       const [yw, mw, dw] = date.split("-").map(Number);
-      const weekDates = isMonThu
-        ? [formatDateKey(new Date(yw, mw - 1, dw + 1)), formatDateKey(new Date(yw, mw - 1, dw + 2)), formatDateKey(new Date(yw, mw - 1, dw + 3)), formatDateKey(new Date(yw, mw - 1, dw + 4))]
+      const weekDates = isWeekAggregated
+        ? Array.from({ length: isMonThu ? 4 : 3 }, (_, j) => formatDateKey(new Date(yw, mw - 1, dw + j + 1)))
         : null;
       const weekDatesAttr = weekDates ? ` data-week-dates="${weekDates.join(",")}"` : "";
       return `<th class="${cls}${boundaryCls} date-clickable" data-date="${date}"${weekDatesAttr} title="${title}">${displayDate}</th>`;
@@ -1532,18 +1544,19 @@ function renderProjectionTable() {
       const date = dates[i];
       const key = `${date}__${time}`;
       const row = aggregated.get(key);
-      const meta = isMonThu ? aggregatedMeta.get(key) : null;
+      const meta = isWeekAggregated ? aggregatedMeta.get(key) : null;
       const monthBoundary = i > 0 && dates[i - 1].slice(0, 7) !== date.slice(0, 7);
       const boundaryCls = monthBoundary ? " month-boundary" : "";
-      const tooltipAttrs = isMonThu && meta
-        ? ` data-max-date="${meta.dateKey}" data-max-day="${(meta.dayName || "").replace(/"/g, "&quot;")}" data-max-volume="${Number.isFinite(meta.volume) ? meta.volume : ""}"`
+      const weekdayRangeAttr = isMonWed ? ` data-weekday-range="mon-wed"` : "";
+      const tooltipAttrs = isWeekAggregated && meta
+        ? ` data-max-date="${meta.dateKey}" data-max-day="${(meta.dayName || "").replace(/"/g, "&quot;")}" data-max-volume="${Number.isFinite(meta.volume) ? meta.volume : ""}"${weekdayRangeAttr}`
         : "";
       if (!row) {
         cells.push(`<td class="cell-unknown${boundaryCls}"${tooltipAttrs}>—</td>`);
         continue;
       }
       const sourceAttrs =
-        !isMonThu && row.sourceDateKey != null
+        !isWeekAggregated && row.sourceDateKey != null
           ? ` data-source-date="${row.sourceDateKey}" data-source-time="${String(row.time).replace(/"/g, "&quot;")}" data-source-volume="${row.sourceVolume != null ? String(row.sourceVolume) : ""}"`
           : "";
       if (Number.isNaN(row.volume)) {
@@ -1564,12 +1577,13 @@ function renderProjectionTable() {
   if (projectionTableWrap) {
     projectionTableWrap.dataset.lanes = projLaneCounts.length === 1 ? String(projLaneCounts[0]) : "";
   }
-  const perDateAggregated = isMonThu
+  const perDateAggregated = isWeekAggregated
     ? (() => {
         const m = new Map();
+        const dayMax = isMonThu ? 4 : 3;
         for (const row of projectedRows) {
           const d = row.dateObj ? row.dateObj.getDay() : -1;
-          if (d < 1 || d > 4) continue;
+          if (d < 1 || d > dayMax) continue;
           const key = `${row.dateKey}__${row.time}`;
           const ex = m.get(key);
           if (!ex || row.volume > ex.volume) m.set(key, row);
@@ -1577,8 +1591,8 @@ function renderProjectionTable() {
         return m;
       })()
     : aggregated;
-  const datesForChart = isMonThu
-    ? Array.from(new Set(projectedRows.filter((r) => r.dateObj && r.dateObj.getDay() >= 1 && r.dateObj.getDay() <= 4).map((r) => r.dateKey))).sort((a, b) => a.localeCompare(b))
+  const datesForChart = isWeekAggregated
+    ? Array.from(new Set(projectedRows.filter((r) => r.dateObj && r.dateObj.getDay() >= 1 && r.dateObj.getDay() <= (isMonThu ? 4 : 3)).map((r) => r.dateKey))).sort((a, b) => a.localeCompare(b))
     : dates;
   state.projectionTableData = {
     dates: datesForChart,
@@ -1587,7 +1601,7 @@ function renderProjectionTable() {
     location: getFilters().location,
     direction: getFilters().direction,
     isProjection: true,
-    ...(isMonThu && { weekStarts: dates, weekAggregated: aggregated }),
+    ...(isWeekAggregated && { weekStarts: dates, weekAggregated: aggregated }),
   };
   if (projectionTableMeta) {
     projectionTableMeta.textContent = `${formatNumber(
@@ -1633,11 +1647,13 @@ function timeSortKey(value) {
   return hour * 60 + minute;
 }
 
+const HOUR_HUES = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
 function getHourColor(hour) {
   const h = ((hour % 24) + 24) % 24;
-  // Red (0) -> Yellow (60) at hour 12 -> Green (120) at hour 23
-  const hue = h <= 12 ? (h / 12) * 60 : 60 + ((h - 12) / 11) * 60;
-  return `hsl(${Math.round(hue)}, 100%, 50%)`;
+  const hue = HOUR_HUES[Math.floor(h / 2)];
+  const alpha = (h % 2 === 0) ? 1 : 0.6;
+  return `hsla(${hue}, 75%, 55%, ${alpha})`;
 }
 
 function hslToHex(hslStr) {
@@ -1812,6 +1828,37 @@ function getClosureBeginEndForMonThuWeek(rows, weekStart, singleThreshold, doubl
   return getClosureBeginEndFromWeekAggregated(weekAggregated, weekStart, singleThreshold, doubleThreshold, hasDouble);
 }
 
+/** Build week-aggregated map (key: weekStart__time) using same logic as Lane Closure Table: max volume per slot across Mon-Wed. */
+function buildMonWedWeekAggregated(rows) {
+  const aggregated = new Map();
+  for (const row of rows) {
+    let d = -1;
+    if (row.dateObj) d = row.dateObj.getDay();
+    else if (row.dateKey) {
+      const [yr, mo, dy] = row.dateKey.split("-").map(Number);
+      if (yr && mo && dy) d = new Date(yr, mo - 1, dy).getDay();
+    }
+    if (d < 1 || d > 3) continue;
+    const weekStart = getWeekStartSunday(row.dateKey);
+    const key = `${weekStart}__${row.time}`;
+    const vol = Number.isFinite(row.volume) ? row.volume : NaN;
+    const existing = aggregated.get(key);
+    const existingVol = existing && Number.isFinite(existing.volume) ? existing.volume : -Infinity;
+    if (!Number.isNaN(vol) && vol > existingVol) {
+      aggregated.set(key, row);
+    } else if (!existing) {
+      aggregated.set(key, row);
+    }
+  }
+  return aggregated;
+}
+
+/** Mon-Wed aggregated: max volume per time slot across Mon-Wed, then closure begin/end. */
+function getClosureBeginEndForMonWedWeek(rows, weekStart, singleThreshold, doubleThreshold, hasDouble) {
+  const weekAggregated = buildMonWedWeekAggregated(rows);
+  return getClosureBeginEndFromWeekAggregated(weekAggregated, weekStart, singleThreshold, doubleThreshold, hasDouble);
+}
+
 function buildClosureSchedule(rows, options = {}) {
   const { targetYear = null, weekdayFilter = null } = options;
   if (!rows.length) return { weekStartDates: [], data: new Map(), hasDouble: false, laneCount: null };
@@ -1881,6 +1928,9 @@ function buildClosureSchedule(rows, options = {}) {
     if (weekdayFilter === "mon-thu") {
       weekData["Mon-Thu"] = getClosureBeginEndForMonThuWeek(rows, weekStart, singleThreshold, doubleThreshold, hasDouble);
     }
+    if (weekdayFilter === "mon-wed") {
+      weekData["Mon-Wed"] = getClosureBeginEndForMonWedWeek(rows, weekStart, singleThreshold, doubleThreshold, hasDouble);
+    }
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
       const date = new Date(y, m - 1, d + dayOfWeek);
       const dateKey = formatDateKey(date);
@@ -1910,11 +1960,14 @@ function renderClosureScheduleTable(schedule, beginHead, beginBody, endHead, end
   const useDouble = type === "double" && schedule.hasDouble;
   const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const MON_THU = ["Monday", "Tuesday", "Wednesday", "Thursday"];
+  const MON_WED = ["Monday", "Tuesday", "Wednesday"];
   const wf = weekdayFilter ?? getFilters().weekday;
 
   let displayCols;
   if (wf === "mon-thu") {
     displayCols = [{ key: "Mon-Thu", days: MON_THU, merge: true }];
+  } else if (wf === "mon-wed") {
+    displayCols = [{ key: "Mon-Wed", days: MON_WED, merge: true }];
   } else if (wf && wf !== "all") {
     const idx = Number(wf);
     if (idx >= 0 && idx <= 6) displayCols = [{ key: WEEKDAYS[idx], days: [WEEKDAYS[idx]], merge: false }];
@@ -1935,8 +1988,8 @@ function renderClosureScheduleTable(schedule, beginHead, beginBody, endHead, end
     return getHourColor(hour);
   }
 
-  function getMergedMonThuValue(weekData, cellType, weekStart) {
-    const vals = MON_THU.map((d) => {
+  function getMergedValue(weekData, cellType, weekStart, days) {
+    const vals = days.map((d) => {
       const dd = weekData?.[d];
       return dd ? (useDouble ? (cellType === "begin" ? dd.beginDouble : dd.endDouble) : (cellType === "begin" ? dd.beginSingle : dd.endSingle)) : null;
     }).filter((x) => x != null);
@@ -2011,9 +2064,9 @@ function renderClosureScheduleTable(schedule, beginHead, beginBody, endHead, end
     for (const col of displayCols) {
       let cellBegin, cellEnd, dateKeyForTooltip;
       if (col.merge) {
-        const mergedDayData = weekData?.["Mon-Thu"] ?? (() => {
-          const vBegin = getMergedMonThuValue(weekData, "begin", weekStart);
-          const vEnd = getMergedMonThuValue(weekData, "end", weekStart);
+        const mergedDayData = weekData?.[col.key] ?? (() => {
+          const vBegin = getMergedValue(weekData, "begin", weekStart, col.days);
+          const vEnd = getMergedValue(weekData, "end", weekStart, col.days);
           return { beginSingle: vBegin, endSingle: vEnd, beginDouble: vBegin, endDouble: vEnd };
         })();
         const firstDate = new Date(y, m - 1, d + WEEKDAYS.indexOf(col.days[0]));
@@ -2071,18 +2124,21 @@ function formatHourLabel(hour) {
 
 function renderClosureLegend(el) {
   if (!el) return;
-  const HOURS = [0, 3, 6, 9, 12, 15, 18, 21];
-  const endGreen = getHourColor(23);
-  const gradientStops = [0, 3, 6, 9, 12, 15, 18, 21, 23].map(
-    (h) => `${getHourColor(h)} ${(h / 24) * 100}%`
-  ).join(", ");
+  const HOURS = [0, 4, 8, 12, 16, 20];
+  const gradientStops = [];
+  for (let h = 0; h < 24; h++) {
+    const c = getHourColor(h);
+    const pct = (h / 24) * 100;
+    const pctNext = ((h + 1) / 24) * 100;
+    gradientStops.push(`${c} ${pct}%`, `${c} ${pctNext}%`);
+  }
   const labels = HOURS.map(
     (h) => `<span class="closure-schedule-colorbar-label" style="left:${(h / 24) * 100}%">${formatHourLabel(h)}</span>`
   ).join("");
   el.innerHTML = `
     <span class="closure-schedule-legend-title">Time</span>
     <div class="closure-schedule-colorbar">
-      <div class="closure-schedule-colorbar-strip" style="background:linear-gradient(to right, ${gradientStops})"></div>
+      <div class="closure-schedule-colorbar-strip" style="background:linear-gradient(to right, ${gradientStops.join(", ")})"></div>
       <div class="closure-schedule-colorbar-labels">${labels}</div>
     </div>
     <span class="closure-schedule-colorbar-extra">
@@ -2369,6 +2425,7 @@ function buildHolidayList(year) {
 
 function getWeekdayLabel(value) {
   if (value === "mon-thu") return "Mon-Thu";
+  if (value === "mon-wed") return "Mon-Wed";
   if (value === "all") return "All";
   const labels = {
     0: "Sunday",
@@ -3025,12 +3082,13 @@ function showMonThuMaxTooltip(cell) {
   if (!dateKey) return;
   const dayName = cell.getAttribute("data-max-day") || "";
   const volStr = cell.getAttribute("data-max-volume");
+  const weekdayRange = cell.getAttribute("data-weekday-range");
   const displayDate = formatDateDisplay(dateKey);
   const displayVolume = volStr !== "" && volStr != null && Number.isFinite(Number(volStr)) ? formatNumber(Number(volStr)) : "N/A";
   monThuMaxTooltip.innerHTML = "";
   const title = document.createElement("div");
   title.className = "tooltip-title";
-  title.textContent = "Mon-Thu";
+  title.textContent = weekdayRange === "mon-wed" ? "Mon-Wed" : "Mon-Thu";
   monThuMaxTooltip.appendChild(title);
   const row1 = document.createElement("div");
   row1.className = "tooltip-row";
@@ -3185,6 +3243,7 @@ function openMonthMonThuDetail(monthDates, tableData, monthName) {
     direction: tableData.direction,
     isProjection: !!tableData.isProjection,
     isMonthMonThuMax: true,
+    weekdayRange: "mon-thu",
     monthName: monthName || "",
   };
   try {
@@ -3195,7 +3254,68 @@ function openMonthMonThuDetail(monthDates, tableData, monthName) {
   }
 }
 
-function openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax) {
+function openMonthMonWedDetail(monthDates, tableData, monthName) {
+  if (!tableData || !monthDates || monthDates.length === 0) return;
+  const volumeByKey = {};
+  if (tableData.aggregated) {
+    for (const [k, row] of tableData.aggregated) {
+      volumeByKey[k] = row && Number.isFinite(row.volume) ? row.volume : null;
+    }
+  }
+  const times = tableData.times || [];
+  const weekGroups = {};
+  for (const d of monthDates) {
+    const w = getWeekStartSunday(d);
+    if (!weekGroups[w]) weekGroups[w] = new Set();
+    weekGroups[w].add(d);
+  }
+  const weekStarts = Object.keys(weekGroups).sort((a, b) => a.localeCompare(b));
+  const CHART_COLORS = [
+    { border: "#15803d", fill: "rgba(22, 128, 61, 0.1)" },
+    { border: "#2563eb", fill: "rgba(37, 99, 235, 0.08)" },
+    { border: "#dc2626", fill: "rgba(220, 38, 38, 0.08)" },
+    { border: "#ca8a04", fill: "rgba(202, 138, 4, 0.08)" },
+    { border: "#9333ea", fill: "rgba(147, 51, 234, 0.08)" },
+    { border: "#0891b2", fill: "rgba(8, 145, 178, 0.08)" },
+  ];
+  const weekMaxDatasets = weekStarts.map((weekStart, i) => {
+    const allDates = Array.from(weekGroups[weekStart]);
+    const data = times.map((time) => {
+      const vols = allDates.map((d) => volumeByKey[`${d}__${time}`]);
+      const finite = vols.filter((v) => v != null && Number.isFinite(v));
+      return finite.length > 0 ? Math.max(...finite) : null;
+    });
+    const colors = CHART_COLORS[i % CHART_COLORS.length];
+    return {
+      label: `Week of ${formatDateDisplay(weekStart)}`,
+      data,
+      borderColor: colors.border,
+      backgroundColor: colors.fill,
+    };
+  });
+  const allWeekStarts = tableData.weekStarts || tableData.dates || [];
+  const availableWeeks = allWeekStarts.filter((w) => !weekStarts.includes(w)).sort((a, b) => a.localeCompare(b));
+  const payload = {
+    weekMaxDatasets,
+    times,
+    volumeByKey,
+    availableWeeks,
+    location: tableData.location,
+    direction: tableData.direction,
+    isProjection: !!tableData.isProjection,
+    isMonthMonWedMax: true,
+    weekdayRange: "mon-wed",
+    monthName: monthName || "",
+  };
+  try {
+    localStorage.setItem("laneClosureDateDetail", JSON.stringify(payload));
+    window.open("date-detail.html", "_blank");
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax, isMonWedMax) {
   if (!tableData || !dateKey) return;
   const { dates, times, aggregated, location, direction, isProjection } = tableData;
   const volumeByKey = {};
@@ -3205,7 +3325,7 @@ function openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax) {
     }
   }
   const payload = { date: dateKey, dates, times, volumeByKey, location, direction, isProjection: !!isProjection };
-  if (isMonThuMax && compareDateKeys && compareDateKeys.length === 3) {
+  if ((isMonThuMax && compareDateKeys && compareDateKeys.length === 3) || (isMonWedMax && compareDateKeys && compareDateKeys.length === 2)) {
     const allDates = [dateKey, ...compareDateKeys];
     const maxTimeseries = times.map((time) => {
       const vols = allDates.map((d) => volumeByKey[`${d}__${time}`]);
@@ -3214,7 +3334,9 @@ function openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax) {
       return { time, volume: maxVol };
     });
     payload.timeseries = maxTimeseries;
-    payload.isMonThuMax = true;
+    payload.isMonThuMax = !!isMonThuMax;
+    payload.isMonWedMax = !!isMonWedMax;
+    payload.weekdayRange = isMonWedMax ? "mon-wed" : "mon-thu";
     const allWeekStarts = tableData.weekStarts || tableData.dates || [];
     payload.availableWeeks = allWeekStarts.filter((w) => w !== getWeekStartSunday(dateKey)).sort((a, b) => a.localeCompare(b));
     payload.weekStartSunday = getWeekStartSunday(dateKey);
@@ -3243,6 +3365,11 @@ document.addEventListener("click", (e) => {
       openMonthMonThuDetail(monthDates, tableData, monthName);
       return;
     }
+    if (monthCell.getAttribute("data-month-mon-wed") === "true") {
+      const monthName = monthCell.textContent?.trim() || "";
+      openMonthMonWedDetail(monthDates, tableData, monthName);
+      return;
+    }
     const primary = monthDates[0];
     const compare = monthDates.slice(1);
     openDateDetail(primary, tableData, compare);
@@ -3258,13 +3385,15 @@ document.addEventListener("click", (e) => {
   const weekDatesStr = cell.getAttribute("data-week-dates");
   let compareDateKeys;
   let isMonThuMax = false;
+  let isMonWedMax = false;
   if (weekDatesStr) {
     const weekDates = weekDatesStr.split(",").filter(Boolean);
     dateKey = weekDates[0] || dateKey;
     compareDateKeys = weekDates.slice(1);
-    isMonThuMax = true;
+    isMonThuMax = compareDateKeys.length === 3;
+    isMonWedMax = compareDateKeys.length === 2;
   }
-  openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax);
+  openDateDetail(dateKey, tableData, compareDateKeys, isMonThuMax, isMonWedMax);
 });
 
 let monThuMaxTooltipTimer = null;

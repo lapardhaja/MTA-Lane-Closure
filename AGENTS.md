@@ -60,8 +60,9 @@ Order of operations:
 
 ## 4. Week Structure
 
-- **Closure schedule / Mon-Thu:** Week starts **Sunday** (`getWeekStartSunday`).
+- **Closure schedule / Mon-Thu / Mon-Wed:** Week starts **Sunday** (`getWeekStartSunday`).
 - **Mon-Thu aggregation:** Monday–Thursday only; max volume per time slot across those four days.
+- **Mon-Wed aggregation:** Monday–Wednesday only; max volume per time slot across those three days.
 
 ---
 
@@ -69,6 +70,7 @@ Order of operations:
 
 - **Single day:** Closure begin/end from that day’s volume curve.
 - **Mon-Thu:** Closure begin/end from the **aggregated max-volume curve** (same as Lane Closure Table), not from merging per-day begin/end. `buildMonThuWeekAggregated` + `getClosureBeginEndForMonThuWeek`.
+- **Mon-Wed:** Same logic as Mon-Thu but for Monday–Wednesday only. `buildMonWedWeekAggregated` + `getClosureBeginEndForMonWedWeek`.
 
 ---
 
@@ -95,8 +97,8 @@ Order of operations:
 
 1. **Holiday-to-holiday mapping** – Target holiday always maps to base-year same holiday.
 2. **Non-holiday never uses holiday source** – Enforced by ‑7/+7 avoidance in `findSourceDateKey`.
-3. **Mon-Thu closure = aggregated max curve** – Not a merge of per-day begin/end.
-4. **Week = Sunday start** – For Mon-Thu and closure schedule.
+3. **Mon-Thu / Mon-Wed closure = aggregated max curve** – Not a merge of per-day begin/end.
+4. **Week = Sunday start** – For Mon-Thu, Mon-Wed, and closure schedule.
 5. **Base year inferred from data** – `getBaseYear(rows)`; no hardcoded year.
 
 ---

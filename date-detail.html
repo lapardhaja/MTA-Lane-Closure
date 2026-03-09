@@ -223,7 +223,7 @@
         let payload;
         try { payload = JSON.parse(payloadStr); } catch (e) { console.error(e); return; }
 
-        const { date, dates, times, volumeByKey, location, direction, isProjection, compareDateKeys, isMonThuMax, weekMaxDatasets, monthName, availableWeeks, weekStartSunday } = payload;
+        const { date, dates, times, volumeByKey, location, direction, isProjection, compareDateKeys, isMonThuMax, isMonWedMax, weekMaxDatasets, monthName, availableWeeks, weekStartSunday, weekdayRange } = payload;
 
         function buildTimeseries(dateKey, volMap, timeList) {
           return timeList.map((time) => ({
@@ -236,12 +236,16 @@
         let timeLabels;
         let availableDates = [];
         let monthMonThuDatasets = null;
+        let monthMonWedDatasets = null;
+        const isMonthWeekMax = payload.isMonthMonThuMax || payload.isMonthMonWedMax;
+        const weekdayRangeVal = payload.weekdayRange || "mon-thu";
 
-        if (payload.weekMaxDatasets && payload.isMonthMonThuMax) {
+        if (payload.weekMaxDatasets && isMonthWeekMax) {
           timeLabels = payload.times || [];
-          monthMonThuDatasets = payload.weekMaxDatasets;
+          monthMonThuDatasets = payload.isMonthMonThuMax ? payload.weekMaxDatasets : null;
+          monthMonWedDatasets = payload.isMonthMonWedMax ? payload.weekMaxDatasets : null;
           availableDates = [];
-        } else if (payload.timeseries && payload.isMonThuMax) {
+        } else if (payload.timeseries && (payload.isMonThuMax || payload.isMonWedMax)) {
           timeLabels = payload.timeseries.map((p) => p.time);
           timeseries = payload.timeseries;
           availableDates = [];
@@ -262,10 +266,11 @@
         const displayDate = `${m}/${d}/${y}`;
 
         const weekDisplayDate = weekStartSunday ? (() => { const [yr, mo, day] = weekStartSunday.split("-").map(Number); return `${mo}/${day}/${yr}`; })() : displayDate;
-        document.getElementById("pageTitle").textContent = monthMonThuDatasets
-          ? `Volume by Hour – ${monthName || "Month"} (Mon-Thu per week)`
-          : isMonThuMax
-            ? `Volume by Hour – Week of ${weekDisplayDate} (Mon-Thu)`
+        const weekLabel = weekdayRangeVal === "mon-wed" ? "Mon-Wed" : "Mon-Thu";
+        document.getElementById("pageTitle").textContent = (monthMonThuDatasets || monthMonWedDatasets)
+          ? `Volume by Hour – ${monthName || "Month"} (${weekLabel} per week)`
+          : (isMonThuMax || isMonWedMax)
+            ? `Volume by Hour – Week of ${weekDisplayDate} (${weekLabel})`
             : `Volume by Hour – ${displayDate}`;
         document.getElementById("pageMeta").textContent = [
           location && `Location: ${location}`,
@@ -273,8 +278,8 @@
           isProjection && "(Projected)",
         ].filter(Boolean).join(" · ");
 
-        const hasData = monthMonThuDatasets
-          ? monthMonThuDatasets.some((ds) => ds.data.some((v) => v != null))
+        const hasData = (monthMonThuDatasets || monthMonWedDatasets)
+          ? (monthMonThuDatasets || monthMonWedDatasets).some((ds) => ds.data.some((v) => v != null))
           : timeseries.some((p) => p.volume != null);
         if (!hasData) {
           document.querySelector(".chart-wrap").innerHTML = '<div class="no-data">No volume data for this date.</div>';
@@ -294,7 +299,8 @@
         function buildWeekMaxData(weekStart, volMap, timeList) {
           const [yw, mw, dw] = weekStart.split("-").map(Number);
           const allDates = [];
-          for (let i = 1; i <= 4; i++) {
+          const dayCount = weekdayRangeVal === "mon-wed" ? 3 : 4;
+          for (let i = 1; i <= dayCount; i++) {
             const d = new Date(yw, mw - 1, dw + i);
             allDates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
           }
@@ -319,10 +325,10 @@
         const compareDropdownTrigger = document.getElementById("compareDropdownTrigger");
         const compareDropdownPanel = document.getElementById("compareDropdownPanel");
         const compareSearch = document.getElementById("compareSearch");
-        const selectedCompareDates = new Set(monthMonThuDatasets || isMonThuMax ? [] : (Array.isArray(compareDateKeys) ? compareDateKeys : []));
+        const selectedCompareDates = new Set((monthMonThuDatasets || monthMonWedDatasets || isMonThuMax || isMonWedMax) ? [] : (Array.isArray(compareDateKeys) ? compareDateKeys : []));
         const selectedCompareWeeks = new Set();
         const availableWeeksList = Array.isArray(payload.availableWeeks) ? payload.availableWeeks : (Array.isArray(availableWeeks) ? availableWeeks : []);
-        if (selectedCompareDates.size > 0 && !monthMonThuDatasets) {
+        if (selectedCompareDates.size > 0 && !monthMonThuDatasets && !monthMonWedDatasets) {
           document.getElementById("pageTitle").textContent = `Volume by Hour – ${displayDate} (${selectedCompareDates.size + 1} dates)`;
         }
 
@@ -330,7 +336,7 @@
           compareSelectedChips.innerHTML = "";
           const sorted = Array.from(selectedCompareDates).sort();
           if (sorted.length === 0 && selectedCompareWeeks.size === 0) {
-            compareSelectedChips.textContent = (monthMonThuDatasets || isMonThuMax)
+            compareSelectedChips.textContent = (monthMonThuDatasets || monthMonWedDatasets || isMonThuMax || isMonWedMax)
               ? "None — Ctrl+click weeks in dropdown to add"
               : "None — Ctrl+click dates in dropdown to add";
             compareSelectedChips.style.color = "#94a3b8";
@@ -365,7 +371,7 @@
             removeBtn.addEventListener("click", () => {
               selectedCompareWeeks.delete(w);
               renderSelectedChips();
-              chart.data.datasets = monthMonThuDatasets ? buildMonthMonThuDatasets() : getSingleWeekDatasets();
+              chart.data.datasets = (monthMonThuDatasets || monthMonWedDatasets) ? buildMonthMonThuDatasets() : getSingleWeekDatasets();
               chart.update();
             });
             chip.appendChild(removeBtn);
@@ -412,14 +418,14 @@
               e.preventDefault();
               selectedCompareWeeks.add(w);
               renderSelectedChips();
-              chart.data.datasets = monthMonThuDatasets ? buildMonthMonThuDatasets() : getSingleWeekDatasets();
+              chart.data.datasets = (monthMonThuDatasets || monthMonWedDatasets) ? buildMonthMonThuDatasets() : getSingleWeekDatasets();
               chart.update();
             });
             compareList.appendChild(btn);
           });
         }
 
-        if ((monthMonThuDatasets || isMonThuMax) && compareRow) {
+        if ((monthMonThuDatasets || monthMonWedDatasets || isMonThuMax || isMonWedMax) && compareRow) {
           compareRow.style.display = "flex";
           compareDropdownTrigger.textContent = "Add week to compare";
           compareSearch.placeholder = "Search weeks…";
@@ -467,7 +473,7 @@
           const primaryData = timeseries.map((p) => p.volume);
           const datasets = [
             {
-              label: isMonThuMax ? "Mon-Thu" : displayDate,
+              label: (isMonThuMax || isMonWedMax) ? weekLabel : displayDate,
               data: primaryData,
               borderColor: "#15803d",
               backgroundColor: "rgba(22, 128, 61, 0.1)",
@@ -508,7 +514,7 @@
 
         function getSingleWeekDatasets() {
           const base = [{
-            label: "Mon-Thu",
+            label: weekLabel,
             data: timeseries ? timeseries.map((p) => p.volume) : [],
             borderColor: "#15803d",
             backgroundColor: "rgba(22, 128, 61, 0.1)",
@@ -551,7 +557,7 @@
         }
 
         function buildMonthMonThuDatasets() {
-          const base = (monthMonThuDatasets || []).map((ds) => ({
+          const base = (monthMonThuDatasets || monthMonWedDatasets || []).map((ds) => ({
             label: ds.label,
             data: ds.data,
             borderColor: ds.borderColor || "#15803d",
@@ -595,9 +601,9 @@
         }
 
         const chartCtx = document.getElementById("chart").getContext("2d");
-        const initialDatasets = monthMonThuDatasets
+        const initialDatasets = (monthMonThuDatasets || monthMonWedDatasets)
           ? buildMonthMonThuDatasets()
-          : isMonThuMax
+          : (isMonThuMax || isMonWedMax)
             ? getSingleWeekDatasets()
             : getDatasets(Array.from(selectedCompareDates));
         let chart = new Chart(chartCtx, {

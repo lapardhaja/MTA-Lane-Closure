@@ -1070,6 +1070,7 @@ th.month-label-clickable:hover {
 .closure-schedule-colorbar-strip {
   height: 18px;
   border-radius: 6px;
+  background-color: #f8fafc;
 }
 
 .closure-schedule-colorbar-labels {
