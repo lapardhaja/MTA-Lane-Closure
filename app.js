@@ -38,9 +38,14 @@ const threshold3Double = document.getElementById("threshold-3-double");
 const threshold3Single = document.getElementById("threshold-3-single");
 const threshold2SingleLabel = document.getElementById("threshold-2-single-label");
 const threshold2NoneLabel = document.getElementById("threshold-2-none-label");
+const threshold2WhiteLabel = document.getElementById("threshold-2-white-label");
+const threshold2YellowLabel = document.getElementById("threshold-2-yellow-label");
+const threshold2OrangeLabel = document.getElementById("threshold-2-orange-label");
 const threshold3DoubleLabel = document.getElementById("threshold-3-double-label");
 const threshold3SingleLabel = document.getElementById("threshold-3-single-label");
 const threshold3NoneLabel = document.getElementById("threshold-3-none-label");
+const threshold3WhiteLabel = document.getElementById("threshold-3-white-label");
+const threshold3YellowLabel = document.getElementById("threshold-3-yellow-label");
 const threshold3Error = document.getElementById("threshold-3-error");
 const tabCurrent = document.getElementById("tabCurrent");
 const tabProjections = document.getElementById("tabProjections");
@@ -291,7 +296,11 @@ function deriveTier(volume, lanes) {
   const config = state.thresholds[laneCount];
   if (!config) return "unknown";
   if (laneCount === 2) {
-    return volume > config.singleMax ? "none" : "single";
+    if (volume > config.singleMax) return "none";
+    const pct = config.singleMax > 0 ? volume / config.singleMax : 0;
+    if (pct > 0.95) return "single-orange";
+    if (pct > 0.9) return "single-yellow";
+    return "single-ok";
   }
   if (!Number.isFinite(config.doubleMax) || !Number.isFinite(config.singleMax)) {
     return "unknown";
@@ -299,9 +308,11 @@ function deriveTier(volume, lanes) {
   if (config.singleMax <= config.doubleMax) {
     return "unknown";
   }
-  if (volume <= config.doubleMax) return "double";
-  if (volume <= config.singleMax) return "single";
-  return "none";
+  if (volume > config.singleMax) return "none";
+  if (volume > config.doubleMax) return "single-orange";
+  const whiteAt = 0.9 * config.doubleMax;
+  if (volume <= whiteAt) return "double-ok";
+  return "double-yellow";
 }
 
 function parseCSV(text) {
@@ -640,18 +651,34 @@ function refreshThresholdLabels(values = null) {
     threshold2SingleLabel.textContent = `volume <= ${formatNumber(two.singleMax)}`;
   }
   if (threshold2NoneLabel) {
-    threshold2NoneLabel.textContent = `volume > ${formatNumber(two.singleMax)}`;
+    threshold2NoneLabel.textContent = `> ${formatNumber(two.singleMax)}`;
+  }
+  const t90 = 0.9 * (two.singleMax || 0);
+  const t95 = 0.95 * (two.singleMax || 0);
+  if (threshold2WhiteLabel) {
+    threshold2WhiteLabel.textContent = formatNumber(Math.round(t90));
+  }
+  if (threshold2YellowLabel) {
+    threshold2YellowLabel.textContent = `${formatNumber(Math.round(t90))}–${formatNumber(Math.round(t95))}`;
+  }
+  if (threshold2OrangeLabel) {
+    threshold2OrangeLabel.textContent = `${formatNumber(Math.round(t95))}–${formatNumber(two.singleMax)}`;
   }
   if (threshold3DoubleLabel) {
     threshold3DoubleLabel.textContent = `volume <= ${formatNumber(three.doubleMax)}`;
   }
   if (threshold3SingleLabel) {
-    threshold3SingleLabel.textContent = `volume > ${formatNumber(
-      three.doubleMax
-    )} and <= ${formatNumber(three.singleMax)}`;
+    threshold3SingleLabel.textContent = `${formatNumber(three.doubleMax)}–${formatNumber(three.singleMax)}`;
   }
   if (threshold3NoneLabel) {
-    threshold3NoneLabel.textContent = `volume > ${formatNumber(three.singleMax)}`;
+    threshold3NoneLabel.textContent = `> ${formatNumber(three.singleMax)}`;
+  }
+  const whiteAt = 0.9 * (three.doubleMax || 0);
+  if (threshold3WhiteLabel) {
+    threshold3WhiteLabel.textContent = formatNumber(Math.round(whiteAt));
+  }
+  if (threshold3YellowLabel) {
+    threshold3YellowLabel.textContent = `${formatNumber(Math.round(whiteAt))}–${formatNumber(three.doubleMax)}`;
   }
 
   if (threshold3Error) {
@@ -2452,33 +2479,35 @@ function buildLegendHtml(laneCounts) {
   const parts = [];
   if (counts.includes(2)) {
     const two = state.thresholds[2];
+    const t90 = 0.9 * two.singleMax;
+    const t95 = 0.95 * two.singleMax;
     parts.push(
-      `<span class="legend-item tier-single">2-lane: single closure allowed (${formatNumber(
-        two.singleMax
-      )} or less)</span>`
+      `<span class="legend-item tier-single-ok">2-lane: single closure, &lt; 90% (≤ ${formatNumber(t90)})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-none">2-lane: no closure allowed (over ${formatNumber(
-        two.singleMax
-      )})</span>`
+      `<span class="legend-item tier-single-yellow">2-lane: single closure, 90–95% (${formatNumber(t90)}–${formatNumber(t95)})</span>`
+    );
+    parts.push(
+      `<span class="legend-item tier-single-orange">2-lane: single closure, 95–100% (${formatNumber(t95)}–${formatNumber(two.singleMax)})</span>`
+    );
+    parts.push(
+      `<span class="legend-item tier-none">2-lane: no closure (over ${formatNumber(two.singleMax)})</span>`
     );
   }
   if (counts.includes(3)) {
     const three = state.thresholds[3];
+    const whiteAt = 0.9 * (three.doubleMax || 0);
     parts.push(
-      `<span class="legend-item tier-double">3-lane: double closure allowed (${formatNumber(
-        three.doubleMax
-      )} or less)</span>`
+      `<span class="legend-item tier-double-ok">3-lane: double (≤ 90% = ${formatNumber(Math.round(whiteAt))})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-single">3-lane: single closure allowed (${formatNumber(
-        three.doubleMax
-      )} to ${formatNumber(three.singleMax)})</span>`
+      `<span class="legend-item tier-double-yellow">3-lane: double (90–100% = ${formatNumber(Math.round(whiteAt))}–${formatNumber(three.doubleMax)})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-none">3-lane: no closure allowed (over ${formatNumber(
-        three.singleMax
-      )})</span>`
+      `<span class="legend-item tier-single-orange">3-lane: single (${formatNumber(three.doubleMax)}–${formatNumber(three.singleMax)})</span>`
+    );
+    parts.push(
+      `<span class="legend-item tier-none">3-lane: no closure (over ${formatNumber(three.singleMax)})</span>`
     );
   }
   return parts.join("");
@@ -2575,9 +2604,11 @@ function buildExportHtml() {
         border-radius: 999px;
         margin-top: 4px;
       }
-      .tier-double { background: #e0f2fe; border-color: #7dd3fc; }
-      .tier-single { background: #fef3c7; border-color: #facc15; }
-      .tier-none { background: #fee2e2; border-color: #fca5a5; }
+      .tier-double-ok, .tier-single-ok { background: #f8fafc; border-color: #e2e8f0; }
+      .tier-double-yellow, .tier-single-yellow { background: #fef08a; border-color: #eab308; }
+      .tier-double-orange, .tier-single-orange { background: #fdba74; border-color: #ea580c; }
+      .tier-single { background: #fef08a; border-color: #eab308; }
+      .tier-none { background: #fca5a5; border-color: #dc2626; }
       table {
         border-collapse: collapse;
         width: 100%;
@@ -2590,10 +2621,13 @@ function buildExportHtml() {
         white-space: nowrap;
       }
       th:first-child, td:first-child { font-weight: 600; }
-      .cell-double { background: #f0f9ff; }
-      .cell-single { background: #fffbeb; }
-      .cell-none { background: #fff1f2; }
+      .cell-single-ok, .cell-double-ok { background: #f8fafc; }
+      .cell-single-yellow, .cell-double-yellow { background: #fef08a; }
+      .cell-single-orange, .cell-double-orange { background: #fdba74; }
+      .cell-single { background: #fef08a; }
+      .cell-none { background: #fca5a5; }
       .cell-unknown { background: #f3f4f6; color: #6b7280; }
+      .cell-na { background: #fef2f2; color: #b91c1c; font-weight: 700; }
       .closure-schedule-section { margin-top: 24px; }
       .closure-schedule-section h2 { font-size: 16px; margin: 0 0 12px 0; }
       .closure-schedule-tables { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }

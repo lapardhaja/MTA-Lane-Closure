@@ -723,9 +723,22 @@ button.ghost:hover {
   font-size: 13px;
 }
 
-.tier-double {
-  background: #e0f2fe;
-  border: 1px solid #7dd3fc;
+.tier-double-ok,
+.tier-single-ok {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.tier-double-yellow,
+.tier-single-yellow {
+  background: #fef08a;
+  border: 1px solid #eab308;
+}
+
+.tier-double-orange,
+.tier-single-orange {
+  background: #fdba74;
+  border: 1px solid #ea580c;
 }
 
 .tier-single {
@@ -733,21 +746,9 @@ button.ghost:hover {
   border: 1px solid #eab308;
 }
 
-/* 2-lane: single closure allowed = whitish (matches table cells) */
-.threshold-group[data-lanes="2"] .legend-item.tier-single {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
-/* 3-lane: double closure allowed = whitish (matches table cells) */
-.threshold-group[data-lanes="3"] .legend-item.tier-double {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
 .tier-none {
-  background: #fecaca;
-  border: 1px solid #f87171;
+  background: #fca5a5;
+  border: 1px solid #dc2626;
 }
 
 .table-wrap {
@@ -876,26 +877,24 @@ tbody td:first-child {
   box-shadow: inset 0 0 0 2px rgba(22, 101, 52, 0.3);
 }
 
-.cell-double {
-  background: #f0f9ff;
+/* Warning bands: white (<90%), yellow (90-95%), orange (95-100%) */
+.cell-single-ok,
+.cell-double-ok {
+  background: #f8fafc;
 }
 
-.cell-single {
+.cell-single-yellow,
+.cell-double-yellow {
   background: #fef08a;
 }
 
-/* 2 lanes: single lane closure allowed = whitish */
-.table-wrap[data-lanes="2"] .cell-single {
-  background: #f8fafc;
-}
-
-/* 3 lanes: double lane closure allowed = whitish */
-.table-wrap[data-lanes="3"] .cell-double {
-  background: #f8fafc;
+.cell-single-orange,
+.cell-double-orange {
+  background: #fdba74;
 }
 
 .cell-none {
-  background: #fecaca;
+  background: #fca5a5;
 }
 
 .cell-unknown {
