@@ -33,6 +33,21 @@
           </label>
           <button id="clearData" type="button" class="ghost">Clear</button>
           <div class="file-name" id="fileName">No file selected</div>
+          <div class="thresholds-unlock thresholds-unlock-inline" id="thresholdsUnlock">
+            <div class="thresholds-unlock-row" id="thresholdsUnlockRow">
+              <div class="thresholds-password-wrap">
+                <label class="thresholds-password-label" for="thresholdPassword">Password</label>
+                <div class="thresholds-password-input-row">
+                  <input id="thresholdPassword" type="password" placeholder="Password" autocomplete="off" />
+                  <button id="thresholdUnlockBtn" type="button">Unlock</button>
+                </div>
+              </div>
+            </div>
+            <div class="thresholds-unlock-row is-hidden" id="thresholdsUnlockedRow">
+              <span class="thresholds-lock-status">Unlocked – thresholds &amp; growth % editable</span>
+              <button id="thresholdLockBtn" type="button" class="ghost">Lock</button>
+            </div>
+          </div>
           <div class="hint">
             Expected columns: Location, Direction, Date, Time, Volume, Lanes
           </div>
@@ -151,9 +166,17 @@
         </div>
         <div class="collapsible-panel" id="settingsPanel">
           <div class="thresholds" id="thresholdsPanel">
-            <div class="thresholds-meta" id="thresholdsMeta">
-              Defaults shown. Load data to auto-select lane controls.
+            <div class="thresholds-pct is-hidden" id="thresholdsPctRow">
+              <label>
+                Yellow band (%)
+                <input id="thresholdPctYellow" type="number" min="1" max="99" value="90" />
+              </label>
+              <label>
+                Orange band (%)
+                <input id="thresholdPctOrange" type="number" min="1" max="99" value="95" />
+              </label>
             </div>
+            <div class="thresholds-meta" id="thresholdsMeta"></div>
             <div class="threshold-group" data-lanes="2">
               <div class="threshold-title">2-lane segment</div>
               <div class="threshold-controls">
@@ -168,9 +191,9 @@
                 </label>
               </div>
               <div class="legend">
-                <div class="legend-item tier-single-ok">Single closure (≤ 90% = <span id="threshold-2-white-label"></span>)</div>
-                <div class="legend-item tier-single-yellow">Single closure (90–95% = <span id="threshold-2-yellow-label"></span>)</div>
-                <div class="legend-item tier-single-orange">Single closure (95–100% = <span id="threshold-2-orange-label"></span>)</div>
+                <div class="legend-item tier-single-ok">Single closure (≤ <span id="threshold-2-yellow-pct">90</span>% = <span id="threshold-2-white-label"></span>)</div>
+                <div class="legend-item tier-single-yellow">Single closure (<span id="threshold-2-yellow-pct-2">90</span>–<span id="threshold-2-orange-pct">95</span>% = <span id="threshold-2-yellow-label"></span>)</div>
+                <div class="legend-item tier-single-orange">Single closure (<span id="threshold-2-orange-pct-2">95</span>–100% = <span id="threshold-2-orange-label"></span>)</div>
                 <div class="legend-item tier-none">
                   No closure (<span id="threshold-2-none-label"></span>)
                 </div>
@@ -200,8 +223,8 @@
               </div>
               <div class="threshold-error" id="threshold-3-error" aria-live="polite"></div>
               <div class="legend">
-                <div class="legend-item tier-double-ok">Double closure (≤ 90% = <span id="threshold-3-white-label"></span>)</div>
-                <div class="legend-item tier-double-yellow">Double closure (90–100% = <span id="threshold-3-yellow-label"></span>)</div>
+                <div class="legend-item tier-double-ok">Double closure (≤ <span id="threshold-3-yellow-pct">90</span>% = <span id="threshold-3-white-label"></span>)</div>
+                <div class="legend-item tier-double-yellow">Double closure (<span id="threshold-3-yellow-pct-2">90</span>–100% = <span id="threshold-3-yellow-label"></span>)</div>
                 <div class="legend-item tier-single-orange">Single closure (<span id="threshold-3-single-label"></span>)</div>
                 <div class="legend-item tier-none">
                   No closure (<span id="threshold-3-none-label"></span>)

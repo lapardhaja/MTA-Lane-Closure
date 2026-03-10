@@ -47,6 +47,20 @@ const threshold3NoneLabel = document.getElementById("threshold-3-none-label");
 const threshold3WhiteLabel = document.getElementById("threshold-3-white-label");
 const threshold3YellowLabel = document.getElementById("threshold-3-yellow-label");
 const threshold3Error = document.getElementById("threshold-3-error");
+const thresholdsUnlockRow = document.getElementById("thresholdsUnlockRow");
+const thresholdsUnlockedRow = document.getElementById("thresholdsUnlockedRow");
+const thresholdPassword = document.getElementById("thresholdPassword");
+const thresholdUnlockBtn = document.getElementById("thresholdUnlockBtn");
+const thresholdLockBtn = document.getElementById("thresholdLockBtn");
+const thresholdsPctRow = document.getElementById("thresholdsPctRow");
+const thresholdPctYellow = document.getElementById("thresholdPctYellow");
+const thresholdPctOrange = document.getElementById("thresholdPctOrange");
+const threshold2YellowPct = document.getElementById("threshold-2-yellow-pct");
+const threshold2YellowPct2 = document.getElementById("threshold-2-yellow-pct-2");
+const threshold2OrangePct = document.getElementById("threshold-2-orange-pct");
+const threshold2OrangePct2 = document.getElementById("threshold-2-orange-pct-2");
+const threshold3YellowPct = document.getElementById("threshold-3-yellow-pct");
+const threshold3YellowPct2 = document.getElementById("threshold-3-yellow-pct-2");
 const tabCurrent = document.getElementById("tabCurrent");
 const tabProjections = document.getElementById("tabProjections");
 const currentView = document.getElementById("currentView");
@@ -107,6 +121,8 @@ const HOLIDAYS_BY_REGION = {
   nh: ["Civil Rights Day", "Patriots' Day"],
 };
 
+const THRESHOLD_PASSWORD = "1947";
+
 const state = {
   rows: [],
   filtered: [],
@@ -114,6 +130,8 @@ const state = {
     2: { singleMax: 1340 },
     3: { doubleMax: 1350, singleMax: 3000 },
   },
+  thresholdPct: { yellow: 90, orange: 95 },
+  thresholdsUnlocked: false,
   projection: {
     targetYear: null,
     defaultRate: 2,
@@ -298,8 +316,10 @@ function deriveTier(volume, lanes) {
   if (laneCount === 2) {
     if (volume > config.singleMax) return "none";
     const pct = config.singleMax > 0 ? volume / config.singleMax : 0;
-    if (pct > 0.95) return "single-orange";
-    if (pct > 0.9) return "single-yellow";
+    const orangeDec = (state.thresholdPct.orange || 95) / 100;
+    const yellowDec = (state.thresholdPct.yellow || 90) / 100;
+    if (pct > orangeDec) return "single-orange";
+    if (pct > yellowDec) return "single-yellow";
     return "single-ok";
   }
   if (!Number.isFinite(config.doubleMax) || !Number.isFinite(config.singleMax)) {
@@ -310,7 +330,8 @@ function deriveTier(volume, lanes) {
   }
   if (volume > config.singleMax) return "none";
   if (volume > config.doubleMax) return "single-orange";
-  const whiteAt = 0.9 * config.doubleMax;
+  const yellowDec = (state.thresholdPct.yellow || 90) / 100;
+  const whiteAt = yellowDec * config.doubleMax;
   if (volume <= whiteAt) return "double-ok";
   return "double-yellow";
 }
@@ -528,6 +549,10 @@ function sanitizeDecimalString(str) {
 function bindDecimalCaretFix(input, onValueChange) {
   if (!input) return;
   input.addEventListener("beforeinput", (event) => {
+    if (!state.thresholdsUnlocked) {
+      event.preventDefault();
+      return;
+    }
     if (event.isComposing) return;
     const current = String(input.value || "");
     const start =
@@ -585,6 +610,10 @@ function bindDecimalCaretFix(input, onValueChange) {
 function bindNumericCaretFix(input, onValueChange) {
   if (!input) return;
   input.addEventListener("beforeinput", (event) => {
+    if (!state.thresholdsUnlocked) {
+      event.preventDefault();
+      return;
+    }
     if (event.isComposing) return;
     const current = String(input.value || "");
     const start =
@@ -653,8 +682,14 @@ function refreshThresholdLabels(values = null) {
   if (threshold2NoneLabel) {
     threshold2NoneLabel.textContent = `> ${formatNumber(two.singleMax)}`;
   }
-  const t90 = 0.9 * (two.singleMax || 0);
-  const t95 = 0.95 * (two.singleMax || 0);
+  const yellowDec = (state.thresholdPct.yellow || 90) / 100;
+  const orangeDec = (state.thresholdPct.orange || 95) / 100;
+  const t90 = yellowDec * (two.singleMax || 0);
+  const t95 = orangeDec * (two.singleMax || 0);
+  if (threshold2YellowPct) threshold2YellowPct.textContent = state.thresholdPct.yellow;
+  if (threshold2YellowPct2) threshold2YellowPct2.textContent = state.thresholdPct.yellow;
+  if (threshold2OrangePct) threshold2OrangePct.textContent = state.thresholdPct.orange;
+  if (threshold2OrangePct2) threshold2OrangePct2.textContent = state.thresholdPct.orange;
   if (threshold2WhiteLabel) {
     threshold2WhiteLabel.textContent = formatNumber(Math.round(t90));
   }
@@ -673,7 +708,9 @@ function refreshThresholdLabels(values = null) {
   if (threshold3NoneLabel) {
     threshold3NoneLabel.textContent = `> ${formatNumber(three.singleMax)}`;
   }
-  const whiteAt = 0.9 * (three.doubleMax || 0);
+  const whiteAt = yellowDec * (three.doubleMax || 0);
+  if (threshold3YellowPct) threshold3YellowPct.textContent = state.thresholdPct.yellow;
+  if (threshold3YellowPct2) threshold3YellowPct2.textContent = state.thresholdPct.yellow;
   if (threshold3WhiteLabel) {
     threshold3WhiteLabel.textContent = formatNumber(Math.round(whiteAt));
   }
@@ -730,6 +767,7 @@ function updateThresholdInputs() {
 }
 
 function updateThresholdsFromInputs() {
+  if (!state.thresholdsUnlocked) return;
   const twoSingle = readNumberInput(threshold2Single);
   const threeDouble = readNumberInput(threshold3Double);
   const threeSingle = readNumberInput(threshold3Single);
@@ -754,6 +792,7 @@ function updateThresholdsFromInputs() {
 }
 
 function scheduleThresholdApply() {
+  if (!state.thresholdsUnlocked) return;
   if (thresholdApplyTimer) {
     clearTimeout(thresholdApplyTimer);
   }
@@ -778,10 +817,7 @@ function updateThresholdPanel() {
   const groups = Array.from(document.querySelectorAll("[data-lanes]"));
   if (state.rows.length === 0) {
     groups.forEach((group) => (group.style.display = ""));
-    if (thresholdsMeta) {
-      thresholdsMeta.textContent =
-        "Defaults shown. Load data to auto-select lane controls.";
-    }
+    if (thresholdsMeta) thresholdsMeta.textContent = "";
     return;
   }
 
@@ -810,6 +846,35 @@ function updateThresholdPanel() {
         )}. No controls for ${unsupported.join(", ")} lanes.`
       : `Lane counts in selection: ${laneCounts.join(", ")}.`;
   }
+}
+
+function updateThresholdsLockedUI() {
+  const unlocked = state.thresholdsUnlocked;
+  if (threshold2Single) {
+    threshold2Single.disabled = !unlocked;
+    threshold2Single.readOnly = !unlocked;
+  }
+  if (threshold3Double) {
+    threshold3Double.disabled = !unlocked;
+    threshold3Double.readOnly = !unlocked;
+  }
+  if (threshold3Single) {
+    threshold3Single.disabled = !unlocked;
+    threshold3Single.readOnly = !unlocked;
+  }
+  if (thresholdsUnlockRow) thresholdsUnlockRow.classList.toggle("is-hidden", unlocked);
+  if (thresholdsUnlockedRow) thresholdsUnlockedRow.classList.toggle("is-hidden", !unlocked);
+  if (thresholdsPctRow) thresholdsPctRow.classList.toggle("is-hidden", !unlocked);
+  if (thresholdPctYellow) {
+    thresholdPctYellow.disabled = !unlocked;
+    thresholdPctYellow.value = state.thresholdPct.yellow;
+  }
+  if (thresholdPctOrange) {
+    thresholdPctOrange.disabled = !unlocked;
+    thresholdPctOrange.value = state.thresholdPct.orange;
+  }
+  if (thresholdPassword) thresholdPassword.value = "";
+  renderProjectionRateInputs();
 }
 
 function getFilters() {
@@ -1186,11 +1251,14 @@ function renderProjectionRateInputs() {
   input.type = "text";
   input.inputMode = "numeric";
   input.dataset.location = location;
+  input.disabled = !state.thresholdsUnlocked;
+  input.readOnly = !state.thresholdsUnlocked;
   const value =
     state.projection.locationRates[location] ??
     state.projection.defaultRate;
   applyDecimalValue(input, value);
   const updateRate = () => {
+    if (!state.thresholdsUnlocked) return;
     const next = readDecimalInput(input);
     if (Number.isFinite(next)) {
       state.projection.locationRates[location] = next;
@@ -2489,16 +2557,18 @@ function buildLegendHtml(laneCounts) {
   const parts = [];
   if (counts.includes(2)) {
     const two = state.thresholds[2];
-    const t90 = 0.9 * two.singleMax;
-    const t95 = 0.95 * two.singleMax;
+    const y = state.thresholdPct.yellow || 90;
+    const o = state.thresholdPct.orange || 95;
+    const t90 = (y / 100) * two.singleMax;
+    const t95 = (o / 100) * two.singleMax;
     parts.push(
-      `<span class="legend-item tier-single-ok">2-lane: single closure, &lt; 90% (≤ ${formatNumber(t90)})</span>`
+      `<span class="legend-item tier-single-ok">2-lane: single closure, &lt; ${y}% (≤ ${formatNumber(t90)})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-single-yellow">2-lane: single closure, 90–95% (${formatNumber(t90)}–${formatNumber(t95)})</span>`
+      `<span class="legend-item tier-single-yellow">2-lane: single closure, ${y}–${o}% (${formatNumber(t90)}–${formatNumber(t95)})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-single-orange">2-lane: single closure, 95–100% (${formatNumber(t95)}–${formatNumber(two.singleMax)})</span>`
+      `<span class="legend-item tier-single-orange">2-lane: single closure, ${o}–100% (${formatNumber(t95)}–${formatNumber(two.singleMax)})</span>`
     );
     parts.push(
       `<span class="legend-item tier-none">2-lane: no closure (over ${formatNumber(two.singleMax)})</span>`
@@ -2506,12 +2576,13 @@ function buildLegendHtml(laneCounts) {
   }
   if (counts.includes(3)) {
     const three = state.thresholds[3];
-    const whiteAt = 0.9 * (three.doubleMax || 0);
+    const y = state.thresholdPct.yellow || 90;
+    const whiteAt = (y / 100) * (three.doubleMax || 0);
     parts.push(
-      `<span class="legend-item tier-double-ok">3-lane: double (≤ 90% = ${formatNumber(Math.round(whiteAt))})</span>`
+      `<span class="legend-item tier-double-ok">3-lane: double (≤ ${y}% = ${formatNumber(Math.round(whiteAt))})</span>`
     );
     parts.push(
-      `<span class="legend-item tier-double-yellow">3-lane: double (90–100% = ${formatNumber(Math.round(whiteAt))}–${formatNumber(three.doubleMax)})</span>`
+      `<span class="legend-item tier-double-yellow">3-lane: double (${y}–100% = ${formatNumber(Math.round(whiteAt))}–${formatNumber(three.doubleMax)})</span>`
     );
     parts.push(
       `<span class="legend-item tier-single-orange">3-lane: single (${formatNumber(three.doubleMax)}–${formatNumber(three.singleMax)})</span>`
@@ -2978,6 +3049,52 @@ bindNumericCaretFix(threshold2Single, scheduleThresholdApply);
 bindNumericCaretFix(threshold3Double, scheduleThresholdApply);
 bindNumericCaretFix(threshold3Single, scheduleThresholdApply);
 
+function applyThresholdPctFromInputs() {
+  let y = parseInt(thresholdPctYellow?.value, 10);
+  let o = parseInt(thresholdPctOrange?.value, 10);
+  if (!Number.isFinite(y) || y < 1 || y > 99) y = state.thresholdPct.yellow;
+  if (!Number.isFinite(o) || o < 1 || o > 99) o = state.thresholdPct.orange;
+  if (o <= y) o = Math.min(99, y + 1);
+  state.thresholdPct.yellow = y;
+  state.thresholdPct.orange = o;
+  if (thresholdPctYellow) thresholdPctYellow.value = y;
+  if (thresholdPctOrange) thresholdPctOrange.value = o;
+  refreshThresholdLabels();
+  updateRowTiers();
+  applyFilters();
+  renderTable();
+  renderProjectionTable();
+  renderClosureSchedule();
+  renderProjectionClosureSchedule();
+}
+
+if (thresholdUnlockBtn) {
+  thresholdUnlockBtn.addEventListener("click", () => {
+    const pwd = thresholdPassword?.value?.trim() || "";
+    if (pwd === THRESHOLD_PASSWORD) {
+      state.thresholdsUnlocked = true;
+      updateThresholdsLockedUI();
+    } else {
+      thresholdPassword?.focus();
+      thresholdPassword?.select();
+    }
+  });
+}
+
+if (thresholdLockBtn) {
+  thresholdLockBtn.addEventListener("click", () => {
+    state.thresholdsUnlocked = false;
+    updateThresholdsLockedUI();
+  });
+}
+
+if (thresholdPctYellow) {
+  thresholdPctYellow.addEventListener("change", applyThresholdPctFromInputs);
+}
+if (thresholdPctOrange) {
+  thresholdPctOrange.addEventListener("change", applyThresholdPctFromInputs);
+}
+
 resetFilters.addEventListener("click", () => {
   locationFilter.value = "";
   directionFilter.value = "";
@@ -3093,6 +3210,7 @@ if (projectionYear) {
 
 updateThresholdInputs();
 updateThresholdPanel();
+updateThresholdsLockedUI();
 updateProjectionYearOptions();
 renderProjectionRateInputs();
 renderProjectionTable();

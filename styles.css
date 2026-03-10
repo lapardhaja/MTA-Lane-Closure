@@ -333,10 +333,25 @@ main {
 
 .controls {
   display: grid;
-  grid-template-columns: auto auto auto 1fr;
+  grid-template-columns: auto auto 1fr auto;
   gap: 12px;
   align-items: center;
   min-width: 0;
+}
+
+.controls .hint {
+  grid-column: 1 / -1;
+}
+
+.thresholds-unlock-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.thresholds-unlock-inline .thresholds-unlock-row {
+  margin: 0;
 }
 
 .filters {
@@ -554,6 +569,12 @@ button.ghost:hover {
   align-items: center;
 }
 
+.projection-rate-row input:disabled {
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .projection-rate-suffix {
   color: #6b7680;
   font-size: 14px;
@@ -680,6 +701,75 @@ button.ghost:hover {
   gap: 16px;
 }
 
+.thresholds-unlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thresholds-unlock-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.thresholds-unlock-row.is-hidden {
+  display: none;
+}
+
+.thresholds-lock-status {
+  font-size: 13px;
+  color: #6b7680;
+}
+
+.thresholds-password-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thresholds-password-label {
+  font-size: 12px;
+  color: #6b7680;
+}
+
+.thresholds-password-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thresholds-password-input-row input {
+  width: 120px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.thresholds-pct {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.thresholds-pct.is-hidden {
+  display: none;
+}
+
+.thresholds-pct label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #6b7680;
+}
+
+.thresholds-pct input {
+  width: 70px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
 .thresholds-meta {
   font-size: 12px;
   color: #6b7680;
@@ -709,6 +799,12 @@ button.ghost:hover {
 .threshold-controls input {
   direction: ltr;
   text-align: left;
+}
+
+.threshold-controls input:disabled {
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .threshold-error {
