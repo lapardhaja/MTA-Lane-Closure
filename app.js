@@ -170,16 +170,23 @@ const DEFAULT_GROWTH_RATE_BY_DIRECTION = (() => {
     return m;
   };
 
-  return {
-    NB: zipToMap(ranges, nbRates),
-    SB: zipToMap(ranges, sbRates),
-  };
+  const nb = zipToMap(ranges, nbRates);
+  const sb = zipToMap(ranges, sbRates);
+
+  // Some datasets use "32-36" instead of "32-35" + "35-36".
+  // Default to the max of the adjacent segments for each direction.
+  nb.set("32-36", Math.max(nb.get("32-35") ?? 0, nb.get("35-36") ?? 0));
+  sb.set("32-36", Math.max(sb.get("32-35") ?? 0, sb.get("35-36") ?? 0));
+
+  return { NB: nb, SB: sb };
 })();
 
 function normalizeDirectionCode(direction) {
   const raw = String(direction || "").trim().toUpperCase();
   if (!raw) return "";
   if (raw === "NB" || raw === "SB") return raw;
+  if (raw === "N" || raw.startsWith("NORTH")) return "NB";
+  if (raw === "S" || raw.startsWith("SOUTH")) return "SB";
   const compact = raw.replace(/[^A-Z]/g, "");
   if (compact.includes("N") && compact.includes("B")) return "NB";
   if (compact.includes("S") && compact.includes("B")) return "SB";
