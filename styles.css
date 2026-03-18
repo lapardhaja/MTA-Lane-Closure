@@ -559,7 +559,7 @@ button.ghost:hover {
 
 .projection-rate-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 160px auto;
+  grid-template-columns: minmax(160px, 1fr) 160px auto auto;
   gap: 12px;
   align-items: center;
 }
@@ -573,6 +573,19 @@ button.ghost:hover {
 .projection-rate-suffix {
   color: #6b7680;
   font-size: 14px;
+}
+
+.projection-rate-reset {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+button.projection-rate-reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .projection-source-tooltip {
