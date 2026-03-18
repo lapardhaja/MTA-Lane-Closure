@@ -123,6 +123,83 @@ const HOLIDAYS_BY_REGION = {
 
 const THRESHOLD_PASSWORD = "1947";
 
+const DEFAULT_GROWTH_RATE_BY_DIRECTION = (() => {
+  const ranges = [
+    "0-1",
+    "1-2",
+    "2-3",
+    "3-7",
+    "7-19",
+    "19-25",
+    "25-32",
+    "32-35",
+    "35-36",
+    "36-42",
+    "42-44",
+    "44-45",
+    "45-46",
+    "46-47",
+    "47-48",
+    "48-52",
+    "52-53",
+    "53-63",
+    "63-75",
+    "75-80",
+    "80-86",
+    "86-102",
+    "102-103",
+    "103-109",
+  ];
+
+  const nbRates = [
+    1.39, 1.88, 2.25, 2.0, 1.35, 0.79, 1.81, 3.62, 3.27, 2.24, 0.8, 1.08,
+    0.91, 4.85, 4.81, 7.08, 4.6, 3.65, 5.29, 4.21, 4.83, 7.0, 9.08, 2.67,
+  ];
+
+  const sbRates = [
+    1.62, 2.3, 2.0, 2.48, 1.12, 1.22, 0.8, 1.18, 1.54, 2.57, 3.5, 5.9, 6.18,
+    5.25, 5.49, 6.65, 4.07, 3.93, 3.83, 2.75, 4.29, 5.59, 8.34, 1.23,
+  ];
+
+  const zipToMap = (keys, values) => {
+    const m = new Map();
+    for (let i = 0; i < keys.length; i += 1) {
+      const v = values[i];
+      if (Number.isFinite(v)) m.set(keys[i], v);
+    }
+    return m;
+  };
+
+  return {
+    NB: zipToMap(ranges, nbRates),
+    SB: zipToMap(ranges, sbRates),
+  };
+})();
+
+function normalizeDirectionCode(direction) {
+  const raw = String(direction || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (raw === "NB" || raw === "SB") return raw;
+  const compact = raw.replace(/[^A-Z]/g, "");
+  if (compact.includes("N") && compact.includes("B")) return "NB";
+  if (compact.includes("S") && compact.includes("B")) return "SB";
+  return raw;
+}
+
+function normalizeLocationGrowthKey(location) {
+  const raw = String(location || "").trim();
+  if (!raw) return "";
+  const m = raw.match(/(\d+)\s*-\s*(\d+)/);
+  if (!m) return raw;
+  return `${Number(m[1])}-${Number(m[2])}`;
+}
+
+function makeLocationDirectionKey(location, direction) {
+  const loc = normalizeLocationGrowthKey(location);
+  const dir = normalizeDirectionCode(direction);
+  return `${dir}__${loc}`;
+}
+
 const state = {
   rows: [],
   filtered: [],
@@ -1251,17 +1328,17 @@ function renderProjectionRateInputs() {
   input.type = "text";
   input.inputMode = "numeric";
   input.dataset.location = location;
+  input.dataset.direction = direction;
   input.disabled = !state.thresholdsUnlocked;
   input.readOnly = !state.thresholdsUnlocked;
-  const value =
-    state.projection.locationRates[location] ??
-    state.projection.defaultRate;
+  const value = getProjectionRateValue(location, direction);
   applyDecimalValue(input, value);
   const updateRate = () => {
     if (!state.thresholdsUnlocked) return;
     const next = readDecimalInput(input);
     if (Number.isFinite(next)) {
-      state.projection.locationRates[location] = next;
+      const key = makeLocationDirectionKey(location, direction);
+      state.projection.locationRates[key] = next;
     }
     scheduleProjectionRender();
   };
@@ -1277,9 +1354,29 @@ function renderProjectionRateInputs() {
   projectionLocationRates.appendChild(fragment);
 }
 
-function getProjectionRateForLocation(location) {
-  const value =
-    state.projection.locationRates[location] ?? state.projection.defaultRate;
+function getProjectionRateValue(location, direction) {
+  const key = makeLocationDirectionKey(location, direction);
+  const direct = state.projection.locationRates[key];
+  if (Number.isFinite(direct)) return direct;
+
+  // Back-compat: older overrides were stored by location only.
+  const legacy = state.projection.locationRates[String(location || "").trim()];
+  if (Number.isFinite(legacy)) return legacy;
+  const legacyNormalized =
+    state.projection.locationRates[normalizeLocationGrowthKey(location)];
+  if (Number.isFinite(legacyNormalized)) return legacyNormalized;
+
+  const dirKey = normalizeDirectionCode(direction);
+  const byDir = DEFAULT_GROWTH_RATE_BY_DIRECTION[dirKey];
+  const locKey = normalizeLocationGrowthKey(location);
+  const table = byDir ? byDir.get(locKey) : undefined;
+  if (Number.isFinite(table)) return table;
+
+  return state.projection.defaultRate;
+}
+
+function getProjectionRateForLocation(location, direction) {
+  const value = getProjectionRateValue(location, direction);
   return Number.isFinite(value) ? value / 100 : 0;
 }
 
@@ -1381,7 +1478,7 @@ function findSourceDateKey(targetDateKey, targetToSourceHoliday, baseYear, baseH
   return sourceKey;
 }
 
-function buildProjectedRows(rows, targetYear) {
+function buildProjectedRows(rows, targetYear, rateLocation, rateDirection) {
   if (!rows.length) return [];
   const baseYear = getBaseYear(rows);
   if (!Number.isFinite(baseYear)) return [];
@@ -1410,7 +1507,8 @@ function buildProjectedRows(rows, targetYear) {
   const targetDates = getFullYearDateKeys(targetYear);
   const times = Array.from(new Set(baseRows.map((r) => r.time)));
   const rate = getProjectionRateForLocation(
-    baseRows[0]?.location || "Unknown"
+    rateLocation || baseRows[0]?.location || "Unknown",
+    rateDirection || baseRows[0]?.direction || "Unknown"
   );
   const yearDelta = targetYear - baseYear;
   const growth = Math.pow(1 + rate, yearDelta);
@@ -1493,7 +1591,12 @@ function renderProjectionTable() {
   if (!Number.isFinite(targetYearValue)) return;
   state.projection.targetYear = targetYearValue;
   const projectionBaseRows = getRowsForProjection(targetYearValue);
-  const projectedRows = buildProjectedRows(projectionBaseRows, targetYearValue);
+  const projectedRows = buildProjectedRows(
+    projectionBaseRows,
+    targetYearValue,
+    filters.location,
+    filters.direction
+  );
 
   let dates = getFullYearDateKeys(targetYearValue);
   if (filters.start || filters.end) {
